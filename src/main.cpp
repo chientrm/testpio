@@ -1,10 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
-
-// WiFi credentials
-const char *ssid = "xincamon";
-const char *password = "xincamon";
+#include "wifi_credentials.h"
 
 // Create web server on port 80
 WebServer server(80);
@@ -112,12 +109,12 @@ void setup()
   // Connect to WiFi
   Serial.println("Connecting to WiFi...");
   Serial.print("SSID: ");
-  Serial.println(ssid);
+  Serial.println(WIFI_SSID);
 
   // Configure WiFi for better compatibility
   WiFi.mode(WIFI_STA);
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30)
@@ -133,7 +130,7 @@ void setup()
       Serial.println("Retrying WiFi connection...");
       WiFi.disconnect();
       delay(1000);
-      WiFi.begin(ssid, password);
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     }
   }
 
