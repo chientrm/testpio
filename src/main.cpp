@@ -44,9 +44,25 @@ void handleRoot()
   html += "</div>";
   html += "<script>";
   html += "function controlLED(action){";
-  html += "fetch('/led/'+action).then(()=>{setTimeout(()=>location.reload(),500);});";
+  html += "  if(action==='on'){";
+  html += "    document.querySelector('.status').className='status on';";
+  html += "    document.querySelector('.status strong').textContent='ON 💡';";
+  html += "  } else if(action==='off'){";
+  html += "    document.querySelector('.status').className='status off';";
+  html += "    document.querySelector('.status strong').textContent='OFF 🌚';";
+  html += "  } else if(action==='toggle'){";
+  html += "    const isOn = document.querySelector('.status').classList.contains('on');";
+  html += "    if(isOn){";
+  html += "      document.querySelector('.status').className='status off';";
+  html += "      document.querySelector('.status strong').textContent='OFF 🌚';";
+  html += "    } else {";
+  html += "      document.querySelector('.status').className='status on';";
+  html += "      document.querySelector('.status strong').textContent='ON 💡';";
+  html += "    }";
+  html += "  }";
+  html += "  fetch('/led/'+action);";
   html += "}";
-  html += "setInterval(()=>location.reload(),5000);";
+  html += "setInterval(function(){location.reload();},10000);";
   html += "</script>";
   html += "</body></html>";
 
