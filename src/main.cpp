@@ -32,6 +32,10 @@ enum LedMode
 LedMode currentMode = MODE_OFF;
 CRGB currentColor = CRGB::Blue;
 
+// USB Serial Command Processing
+String serialBuffer = "";
+bool serialCommandReady = false;
+
 // LED Strip Control Functions
 void setStripColor(CRGB color)
 {
@@ -273,29 +277,164 @@ void handleMusicData()
   }
 }
 
-// Power bank keep-alive
-unsigned long lastKeepAlive = 0;
-const unsigned long KEEP_ALIVE_INTERVAL = 10000; // 10 seconds
-
-void keepPowerBankActive()
+// USB Serial Command Processing Functions
+void handleMusicVisualization(String musicData)
 {
-  unsigned long currentTime = millis();
-  if (currentTime - lastKeepAlive > KEEP_ALIVE_INTERVAL)
+  // Parse music data and create visualization
+  // Format: "freq1,freq2,freq3,beat" or JSON-like data
+  // For now, create a simple beat-responsive effect
+
+  if (currentMode == MODE_MUSIC_READY)
   {
-    // Brief high-frequency WiFi scan to increase current draw
-    WiFi.scanNetworks(true);
+    // Simple example: flash intensity based on beat
+    int beatValue = musicData.toInt(); // Simple parsing for demo
+    int intensity = map(constrain(beatValue, 0, 100), 0, 100, 50, 255);
 
-    // Flash built-in LED rapidly to create current spikes
-    for (int i = 0; i < 10; i++)
+    // Create beat-responsive effect
+    for (int i = 0; i < NUM_LEDS; i++)
     {
-      digitalWrite(BUILTIN_LED_PIN, HIGH);
-      delay(50);
-      digitalWrite(BUILTIN_LED_PIN, LOW);
-      delay(50);
+      leds[i] = CHSV(160 + (beatValue % 60), 255, intensity);
     }
+    FastLED.show();
+  }
+}
 
-    lastKeepAlive = currentTime;
-    Serial.println("Power bank keep-alive burst");
+void processSerialCommand(String command)
+{
+  command.trim();
+  command.toLowerCase();
+
+  Serial.println("USB Command received: " + command);
+
+  if (command == "off")
+  {
+    currentMode = MODE_OFF;
+    Serial.println("RESPONSE:Strip OFF");
+  }
+  else if (command == "solid")
+  {
+    currentMode = MODE_SOLID;
+    Serial.println("RESPONSE:Strip Solid Color");
+  }
+  else if (command == "rainbow")
+  {
+    currentMode = MODE_RAINBOW;
+    Serial.println("RESPONSE:Strip Rainbow");
+  }
+  else if (command == "music")
+  {
+    currentMode = MODE_MUSIC_READY;
+    Serial.println("RESPONSE:Strip Music Mode");
+  }
+  else if (command == "red")
+  {
+    currentColor = CRGB::Red;
+    if (currentMode == MODE_SOLID)
+      setStripColor(currentColor);
+    Serial.println("RESPONSE:Color Red");
+  }
+  else if (command == "green")
+  {
+    currentColor = CRGB::Green;
+    if (currentMode == MODE_SOLID)
+      setStripColor(currentColor);
+    Serial.println("RESPONSE:Color Green");
+  }
+  else if (command == "blue")
+  {
+    currentColor = CRGB::Blue;
+    if (currentMode == MODE_SOLID)
+      setStripColor(currentColor);
+    Serial.println("RESPONSE:Color Blue");
+  }
+  else if (command == "yellow")
+  {
+    currentColor = CRGB::Yellow;
+    if (currentMode == MODE_SOLID)
+      setStripColor(currentColor);
+    Serial.println("RESPONSE:Color Yellow");
+  }
+  else if (command == "white")
+  {
+    currentColor = CRGB::White;
+    if (currentMode == MODE_SOLID)
+      setStripColor(currentColor);
+    Serial.println("RESPONSE:Color White");
+  }
+  else if (command == "ledon")
+  {
+    ledState = true;
+    digitalWrite(BUILTIN_LED_PIN, HIGH);
+    Serial.println("RESPONSE:LED ON");
+  }
+  else if (command == "ledoff")
+  {
+    ledState = false;
+    digitalWrite(BUILTIN_LED_PIN, LOW);
+    Serial.println("RESPONSE:LED OFF");
+  }
+  else if (command == "toggle")
+  {
+    ledState = !ledState;
+    digitalWrite(BUILTIN_LED_PIN, ledState);
+    Serial.println("RESPONSE:LED " + String(ledState ? "ON" : "OFF"));
+  }
+  else if (command == "status")
+  {
+    Serial.println("RESPONSE:Mode=" + String(currentMode) + ",LED=" + String(ledState) + ",WiFi=" + String(WiFi.status() == WL_CONNECTED));
+  }
+  else if (command.startsWith("brightness:"))
+  {
+    int brightness = command.substring(11).toInt();
+    if (brightness >= 0 && brightness <= 255)
+    {
+      FastLED.setBrightness(brightness);
+      FastLED.show();
+      Serial.println("RESPONSE:Brightness set to " + String(brightness));
+    }
+    else
+    {
+      Serial.println("RESPONSE:ERROR Invalid brightness (0-255)");
+    }
+  }
+  else if (command.startsWith("music:"))
+  {
+    // Real-time music data: "music:freq1,freq2,freq3,beat"
+    String musicData = command.substring(6);
+    handleMusicVisualization(musicData);
+    Serial.println("RESPONSE:Music data processed");
+  }
+  else
+  {
+    Serial.println("RESPONSE:ERROR Unknown command");
+    Serial.println("Available commands: off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, brightness:0-255, music:data");
+  }
+}
+
+void checkSerialInput()
+{
+  while (Serial.available())
+  {
+    char incoming = Serial.read();
+
+    if (incoming == '\n' || incoming == '\r')
+    {
+      if (serialBuffer.length() > 0)
+      {
+        serialCommandReady = true;
+      }
+    }
+    else
+    {
+      serialBuffer += incoming;
+    }
+  }
+
+  if (serialCommandReady)
+  {
+    processSerialCommand(serialBuffer);
+    serialBuffer = "";
+    serialCommandReady = false;
   }
 }
 
@@ -319,9 +458,8 @@ void setup()
   digitalWrite(BUILTIN_LED_PIN, LOW);
   Serial.println("Built-in LED pin initialized");
 
-  // Initialize keep-alive timer
-  lastKeepAlive = millis();
-  Serial.println("Power bank keep-alive initialized");
+  Serial.println("\n=== Attempting WiFi Connection ===");
+  Serial.println("Note: WiFi is optional - USB serial control always available");
 
   // Connect to WiFi
   Serial.println("Connecting to WiFi...");
@@ -374,7 +512,7 @@ void setup()
     Serial.println("");
     Serial.println("=== WiFi connection failed! ===");
     Serial.println("Check your WiFi credentials and try again");
-    Serial.println("Continuing without WiFi...");
+    Serial.println("Continuing with USB serial control only...");
   }
 
   // Setup web server routes
@@ -405,18 +543,28 @@ void setup()
     Serial.println(WiFi.localIP());
     Serial.println("=================================");
   }
+
+  // Print USB serial control info
+  Serial.println("\n=== USB Serial Control Ready ===");
+  Serial.println("Available commands:");
+  Serial.println("- off, solid, rainbow, music");
+  Serial.println("- red, green, blue, yellow, white");
+  Serial.println("- ledon, ledoff, toggle, status");
+  Serial.println("- brightness:0-255");
+  Serial.println("- music:data (for real-time music sync)");
+  Serial.println("=================================");
 }
 
 void loop()
 {
+  // Check for USB serial commands (highest priority for low latency)
+  checkSerialInput();
+
   // Handle web server requests
   server.handleClient();
 
   // Update LED strip based on current mode
   handleLedStrip();
-
-  // Keep power bank alive
-  keepPowerBankActive();
 
   // Add a small delay to prevent watchdog timer issues
   delay(10);
