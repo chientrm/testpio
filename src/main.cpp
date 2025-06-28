@@ -273,6 +273,32 @@ void handleMusicData()
   }
 }
 
+// Power bank keep-alive
+unsigned long lastKeepAlive = 0;
+const unsigned long KEEP_ALIVE_INTERVAL = 10000; // 10 seconds
+
+void keepPowerBankActive()
+{
+  unsigned long currentTime = millis();
+  if (currentTime - lastKeepAlive > KEEP_ALIVE_INTERVAL)
+  {
+    // Brief high-frequency WiFi scan to increase current draw
+    WiFi.scanNetworks(true);
+
+    // Flash built-in LED rapidly to create current spikes
+    for (int i = 0; i < 10; i++)
+    {
+      digitalWrite(BUILTIN_LED_PIN, HIGH);
+      delay(50);
+      digitalWrite(BUILTIN_LED_PIN, LOW);
+      delay(50);
+    }
+
+    lastKeepAlive = currentTime;
+    Serial.println("Power bank keep-alive burst");
+  }
+}
+
 void setup()
 {
   // Initialize serial communication
@@ -292,6 +318,10 @@ void setup()
   pinMode(BUILTIN_LED_PIN, OUTPUT);
   digitalWrite(BUILTIN_LED_PIN, LOW);
   Serial.println("Built-in LED pin initialized");
+
+  // Initialize keep-alive timer
+  lastKeepAlive = millis();
+  Serial.println("Power bank keep-alive initialized");
 
   // Connect to WiFi
   Serial.println("Connecting to WiFi...");
@@ -384,6 +414,9 @@ void loop()
 
   // Update LED strip based on current mode
   handleLedStrip();
+
+  // Keep power bank alive
+  keepPowerBankActive();
 
   // Add a small delay to prevent watchdog timer issues
   delay(10);
