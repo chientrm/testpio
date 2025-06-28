@@ -35,6 +35,9 @@ CRGB currentColor = CRGB::Blue;
 // USB Serial Command Processing
 String serialBuffer = "";
 bool serialCommandReady = false;
+unsigned long lastSerialActivity = 0;
+const unsigned long SERIAL_TIMEOUT = 30000; // 30 seconds timeout
+bool serialConnected = false;
 
 // LED Strip Control Functions
 void setStripColor(CRGB color)
@@ -304,7 +307,22 @@ void processSerialCommand(String command)
   command.trim();
   command.toLowerCase();
 
+  // Update connection status
+  lastSerialActivity = millis();
+  if (!serialConnected)
+  {
+    serialConnected = true;
+    Serial.println("RESPONSE:USB_CONNECTED");
+  }
+
   Serial.println("USB Command received: " + command);
+
+  // Handle ping/keepalive command
+  if (command == "ping")
+  {
+    Serial.println("RESPONSE:PONG");
+    return;
+  }
 
   if (command == "off")
   {
@@ -381,7 +399,8 @@ void processSerialCommand(String command)
   }
   else if (command == "status")
   {
-    Serial.println("RESPONSE:Mode=" + String(currentMode) + ",LED=" + String(ledState) + ",WiFi=" + String(WiFi.status() == WL_CONNECTED));
+    String wifiStatus = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "disconnected";
+    Serial.println("RESPONSE:Mode=" + String(currentMode) + ",LED=" + String(ledState) + ",WiFi=" + wifiStatus + ",USB=connected");
   }
   else if (command.startsWith("brightness:"))
   {
@@ -406,8 +425,8 @@ void processSerialCommand(String command)
   }
   else
   {
-    Serial.println("RESPONSE:ERROR Unknown command");
-    Serial.println("Available commands: off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, brightness:0-255, music:data");
+    Serial.println("RESPONSE:ERROR Unknown command: " + command);
+    Serial.println("Available commands: ping, off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, brightness:0-255, music:data");
   }
 }
 
@@ -424,9 +443,16 @@ void checkSerialInput()
         serialCommandReady = true;
       }
     }
-    else
+    else if (incoming >= 32 && incoming <= 126) // Only printable ASCII characters
     {
       serialBuffer += incoming;
+
+      // Prevent buffer overflow
+      if (serialBuffer.length() > 100)
+      {
+        Serial.println("RESPONSE:ERROR Command too long");
+        serialBuffer = "";
+      }
     }
   }
 
@@ -435,6 +461,13 @@ void checkSerialInput()
     processSerialCommand(serialBuffer);
     serialBuffer = "";
     serialCommandReady = false;
+  }
+
+  // Check for USB disconnection
+  if (serialConnected && (millis() - lastSerialActivity) > SERIAL_TIMEOUT)
+  {
+    serialConnected = false;
+    Serial.println("RESPONSE:USB_TIMEOUT");
   }
 }
 
@@ -547,12 +580,17 @@ void setup()
   // Print USB serial control info
   Serial.println("\n=== USB Serial Control Ready ===");
   Serial.println("Available commands:");
+  Serial.println("- ping (test connection)");
   Serial.println("- off, solid, rainbow, music");
   Serial.println("- red, green, blue, yellow, white");
   Serial.println("- ledon, ledoff, toggle, status");
   Serial.println("- brightness:0-255");
   Serial.println("- music:data (for real-time music sync)");
   Serial.println("=================================");
+
+  // Send initial status
+  Serial.println("RESPONSE:READY");
+  lastSerialActivity = millis();
 }
 
 void loop()
@@ -565,6 +603,14 @@ void loop()
 
   // Update LED strip based on current mode
   handleLedStrip();
+
+  // Send periodic heartbeat if connected
+  static unsigned long lastHeartbeat = 0;
+  if (serialConnected && (millis() - lastHeartbeat) > 10000)
+  { // Every 10 seconds
+    Serial.println("RESPONSE:HEARTBEAT");
+    lastHeartbeat = millis();
+  }
 
   // Add a small delay to prevent watchdog timer issues
   delay(10);
