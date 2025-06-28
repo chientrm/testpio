@@ -1,14 +1,84 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <FastLED.h>
 #include "wifi_credentials.h"
+
+// LED Strip Configuration
+#define LED_PIN 23
+#define NUM_LEDS 60
+#define LED_TYPE WS2812B
+#define COLOR_ORDER GRB
+#define BRIGHTNESS 128 // 0-255, start at 50% for battery life
+
+CRGB leds[NUM_LEDS];
 
 // Create web server on port 80
 WebServer server(80);
 
-// LED pin (built-in LED on most ESP32 boards)
-const int LED_PIN = 2;
+// Built-in LED pin (keep for testing)
+const int BUILTIN_LED_PIN = 2;
 bool ledState = false;
+
+// LED Strip modes
+enum LedMode
+{
+  MODE_OFF,
+  MODE_SOLID,
+  MODE_RAINBOW,
+  MODE_MUSIC_READY
+};
+
+LedMode currentMode = MODE_OFF;
+CRGB currentColor = CRGB::Blue;
+
+// LED Strip Control Functions
+void setStripColor(CRGB color)
+{
+  fill_solid(leds, NUM_LEDS, color);
+  FastLED.show();
+}
+
+void rainbowEffect()
+{
+  static uint8_t hue = 0;
+  fill_rainbow(leds, NUM_LEDS, hue, 255 / NUM_LEDS);
+  FastLED.show();
+  hue += 3;
+}
+
+void musicVisualizerDemo()
+{
+  // Demo effect until Android app connects
+  static uint8_t beat = 0;
+  for (int i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = CHSV(beat + (i * 4), 255,
+                   beatsin8(60 + (i * 2), 0, 255));
+  }
+  FastLED.show();
+  beat += 2;
+}
+
+void handleLedStrip()
+{
+  switch (currentMode)
+  {
+  case MODE_OFF:
+    FastLED.clear();
+    FastLED.show();
+    break;
+  case MODE_SOLID:
+    setStripColor(currentColor);
+    break;
+  case MODE_RAINBOW:
+    rainbowEffect();
+    break;
+  case MODE_MUSIC_READY:
+    musicVisualizerDemo();
+    break;
+  }
+}
 
 // Function to handle root page
 void handleRoot()
@@ -31,13 +101,28 @@ void handleRoot()
   html += ".ip{margin-top:20px;font-size:14px;color:#666;}";
   html += "</style></head>";
   html += "<body><div class='container'>";
-  html += "<h1>🔆 ESP32 LED Controller</h1>";
+  html += "<h1>🎵 ESP32 Music Visualizer</h1>";
   html += "<div class='status " + String(ledState ? "on" : "off") + "'>";
-  html += "LED Status: <strong>" + String(ledState ? "ON 💡" : "OFF 🌚") + "</strong></div>";
+  html += "Built-in LED: <strong>" + String(ledState ? "ON 💡" : "OFF 🌚") + "</strong></div>";
+
+  html += "<h3>LED Strip Control</h3>";
+  html += "<button class='off' onclick=\"setMode('off')\">Strip OFF</button>";
+  html += "<button class='on' onclick=\"setMode('solid')\">Solid Color</button>";
+  html += "<button class='toggle' onclick=\"setMode('rainbow')\">Rainbow</button>";
+  html += "<button style='background:#ff6b35;color:white;' onclick=\"setMode('music')\">Music Mode</button>";
+
+  html += "<h3>Colors</h3>";
+  html += "<button style='background:#ff0000;color:white;' onclick=\"setColor('red')\">Red</button>";
+  html += "<button style='background:#00ff00;color:black;' onclick=\"setColor('green')\">Green</button>";
+  html += "<button style='background:#0000ff;color:white;' onclick=\"setColor('blue')\">Blue</button>";
+  html += "<button style='background:#ffff00;color:black;' onclick=\"setColor('yellow')\">Yellow</button>";
+
+  html += "<h3>Built-in LED</h3>";
   html += "<button class='on' onclick=\"controlLED('on')\">Turn ON</button>";
   html += "<button class='off' onclick=\"controlLED('off')\">Turn OFF</button>";
   html += "<br><button class='toggle' onclick=\"controlLED('toggle')\">Toggle LED</button>";
   html += "<div class='ip'>Device IP: " + WiFi.localIP().toString() + "</div>";
+  html += "<div style='margin-top:10px;font-size:12px;color:#888;'>Ready for Android app connection!</div>";
   html += "</div>";
   html += "<script>";
   html += "function controlLED(action){";
@@ -59,6 +144,8 @@ void handleRoot()
   html += "  }";
   html += "  fetch('/led/'+action);";
   html += "}";
+  html += "function setMode(mode){fetch('/strip/mode/'+mode);}";
+  html += "function setColor(color){fetch('/strip/color/'+color);}";
   html += "setInterval(function(){location.reload();},10000);";
   html += "</script>";
   html += "</body></html>";
@@ -70,7 +157,7 @@ void handleRoot()
 void handleLedOn()
 {
   ledState = true;
-  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(BUILTIN_LED_PIN, HIGH);
   server.send(200, "text/plain", "LED ON");
   Serial.println("LED turned ON");
 }
@@ -79,7 +166,7 @@ void handleLedOn()
 void handleLedOff()
 {
   ledState = false;
-  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUILTIN_LED_PIN, LOW);
   server.send(200, "text/plain", "LED OFF");
   Serial.println("LED turned OFF");
 }
@@ -88,9 +175,102 @@ void handleLedOff()
 void handleLedToggle()
 {
   ledState = !ledState;
-  digitalWrite(LED_PIN, ledState);
+  digitalWrite(BUILTIN_LED_PIN, ledState);
   server.send(200, "text/plain", ledState ? "LED ON" : "LED OFF");
   Serial.println("LED toggled to: " + String(ledState ? "ON" : "OFF"));
+}
+
+// Function to handle LED strip mode changes
+void handleStripMode()
+{
+  String mode = server.pathArg(0);
+
+  if (mode == "off")
+  {
+    currentMode = MODE_OFF;
+    server.send(200, "text/plain", "Strip OFF");
+    Serial.println("LED Strip: OFF");
+  }
+  else if (mode == "solid")
+  {
+    currentMode = MODE_SOLID;
+    server.send(200, "text/plain", "Strip Solid Color");
+    Serial.println("LED Strip: Solid Color");
+  }
+  else if (mode == "rainbow")
+  {
+    currentMode = MODE_RAINBOW;
+    server.send(200, "text/plain", "Strip Rainbow");
+    Serial.println("LED Strip: Rainbow Mode");
+  }
+  else if (mode == "music")
+  {
+    currentMode = MODE_MUSIC_READY;
+    server.send(200, "text/plain", "Strip Music Mode");
+    Serial.println("LED Strip: Music Visualizer Ready");
+  }
+  else
+  {
+    server.send(400, "text/plain", "Invalid mode");
+  }
+}
+
+// Function to handle LED strip color changes
+void handleStripColor()
+{
+  String color = server.pathArg(0);
+
+  if (color == "red")
+  {
+    currentColor = CRGB::Red;
+  }
+  else if (color == "green")
+  {
+    currentColor = CRGB::Green;
+  }
+  else if (color == "blue")
+  {
+    currentColor = CRGB::Blue;
+  }
+  else if (color == "yellow")
+  {
+    currentColor = CRGB::Yellow;
+  }
+  else if (color == "white")
+  {
+    currentColor = CRGB::White;
+  }
+  else
+  {
+    server.send(400, "text/plain", "Invalid color");
+    return;
+  }
+
+  if (currentMode == MODE_SOLID)
+  {
+    setStripColor(currentColor);
+  }
+
+  server.send(200, "text/plain", "Color set to " + color);
+  Serial.println("LED Strip color: " + color);
+}
+
+// Android App API endpoint for music data
+void handleMusicData()
+{
+  if (server.method() == HTTP_POST)
+  {
+    String body = server.arg("plain");
+    Serial.println("Music data received: " + body);
+
+    // Parse JSON music data here (frequencies, beat, etc.)
+    // For now, just acknowledge receipt
+    server.send(200, "application/json", "{\"status\":\"ok\"}");
+  }
+  else
+  {
+    server.send(405, "text/plain", "Method not allowed");
+  }
 }
 
 void setup()
@@ -99,12 +279,19 @@ void setup()
   Serial.begin(115200);
   delay(1000); // Give serial time to initialize
 
-  Serial.println("\n=== ESP32 LED Controller Starting ===");
+  Serial.println("\n=== ESP32 Music Visualizer Starting ===");
 
-  // Initialize LED pin
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  Serial.println("LED pin initialized");
+  // Initialize LED strip
+  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS);
+  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.clear();
+  FastLED.show();
+  Serial.println("LED strip initialized (60 LEDs)");
+
+  // Initialize built-in LED pin
+  pinMode(BUILTIN_LED_PIN, OUTPUT);
+  digitalWrite(BUILTIN_LED_PIN, LOW);
+  Serial.println("Built-in LED pin initialized");
 
   // Connect to WiFi
   Serial.println("Connecting to WiFi...");
@@ -166,6 +353,16 @@ void setup()
   server.on("/led/off", handleLedOff);
   server.on("/led/toggle", handleLedToggle);
 
+  // LED Strip routes
+  server.on("/strip/mode/*", handleStripMode);
+  server.on("/strip/color/*", handleStripColor);
+
+  // Android App API
+  server.on("/api/music", HTTP_POST, handleMusicData);
+  server.on("/strip/mode/*", handleStripMode);
+  server.on("/strip/color/*", handleStripColor);
+  server.on("/music/data", handleMusicData);
+
   // Start server
   server.begin();
   Serial.println("Web server started!");
@@ -184,6 +381,9 @@ void loop()
 {
   // Handle web server requests
   server.handleClient();
+
+  // Update LED strip based on current mode
+  handleLedStrip();
 
   // Add a small delay to prevent watchdog timer issues
   delay(10);
