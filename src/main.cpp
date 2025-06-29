@@ -49,8 +49,8 @@ bool otaInProgress = false;
 String otaStatus = "Ready";
 
 // Auto-Update Configuration
-const String FIRMWARE_UPDATE_URL = "https://api.github.com/repos/yourusername/yourrepo/releases/latest";
-const String FIRMWARE_BINARY_URL_BASE = "https://github.com/yourusername/yourrepo/releases/download/";
+const String FIRMWARE_UPDATE_URL = "https://api.github.com/repos/chientrm/testpio/releases/latest";
+const String FIRMWARE_BINARY_URL_BASE = "https://github.com/chientrm/testpio/releases/download/";
 unsigned long lastUpdateCheck = 0;
 const unsigned long UPDATE_CHECK_INTERVAL = 3600000; // Check every hour (3600000ms)
 bool autoUpdateEnabled = true;
@@ -145,8 +145,8 @@ void checkForFirmwareUpdate()
       latestVersion = doc["tag_name"].as<String>();
       Serial.println("Latest version: " + latestVersion);
 
-      // Compare with current version (you'll need to define CURRENT_VERSION)
-      const String CURRENT_VERSION = "v1.0.0"; // Update this with your current version
+      // Compare with current version using FIRMWARE_VERSION
+      const String CURRENT_VERSION = "v" + FIRMWARE_VERSION; // Construct version string
 
       if (latestVersion != CURRENT_VERSION)
       {
