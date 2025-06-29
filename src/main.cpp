@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <FastLED.h>
+#include <ArduinoOTA.h>
+#include <ESPmDNS.h>
 #include "wifi_credentials.h"
 
 // LED Strip Configuration
@@ -39,6 +41,14 @@ unsigned long lastSerialActivity = 0;
 const unsigned long SERIAL_TIMEOUT = 30000; // 30 seconds timeout
 bool serialConnected = false;
 
+// OTA Update variables
+bool otaInProgress = false;
+String otaStatus = "Ready";
+
+// Device Info
+const String DEVICE_NAME = "ESP32-MusicViz";
+const String FIRMWARE_VERSION = "1.2.0";
+
 // LED Strip Control Functions
 void setStripColor(CRGB color)
 {
@@ -69,6 +79,10 @@ void musicVisualizerDemo()
 
 void handleLedStrip()
 {
+  // Don't update LEDs during OTA to avoid conflicts
+  if (otaInProgress)
+    return;
+
   switch (currentMode)
   {
   case MODE_OFF:
@@ -85,6 +99,81 @@ void handleLedStrip()
     musicVisualizerDemo();
     break;
   }
+}
+
+// OTA Setup and Event Handlers
+void setupOTA()
+{
+  // Set hostname for easier identification
+  ArduinoOTA.setHostname(DEVICE_NAME.c_str());
+
+  // Optional: Set password for OTA updates (uncomment if needed)
+  // ArduinoOTA.setPassword("your_ota_password");
+
+  ArduinoOTA.onStart([]()
+                     {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else { // U_SPIFFS
+      type = "filesystem";
+    }
+    
+    otaInProgress = true;
+    otaStatus = "Starting " + type + " update...";
+    Serial.println("OTA Update Starting: " + type);
+    
+    // Turn off LED strip during update to save power and avoid conflicts
+    FastLED.clear();
+    FastLED.show();
+    
+    // Turn on built-in LED to indicate OTA in progress
+    digitalWrite(BUILTIN_LED_PIN, HIGH); });
+
+  ArduinoOTA.onEnd([]()
+                   {
+    otaInProgress = false;
+    otaStatus = "Update complete! Restarting...";
+    Serial.println("\nOTA Update Complete");
+    digitalWrite(BUILTIN_LED_PIN, LOW); });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                        {
+    int percent = (progress / (total / 100));
+    otaStatus = "Progress: " + String(percent) + "%";
+    Serial.printf("OTA Progress: %u%%\r", percent);
+    
+    // Blink built-in LED to show progress
+    digitalWrite(BUILTIN_LED_PIN, (percent % 10 < 5) ? HIGH : LOW); });
+
+  ArduinoOTA.onError([](ota_error_t error)
+                     {
+    otaInProgress = false;
+    otaStatus = "Update failed: ";
+    Serial.printf("OTA Error[%u]: ", error);
+    
+    if (error == OTA_AUTH_ERROR) {
+      otaStatus += "Auth Failed";
+      Serial.println("Auth Failed");
+    } else if (error == OTA_BEGIN_ERROR) {
+      otaStatus += "Begin Failed";
+      Serial.println("Begin Failed");
+    } else if (error == OTA_CONNECT_ERROR) {
+      otaStatus += "Connect Failed";
+      Serial.println("Connect Failed");
+    } else if (error == OTA_RECEIVE_ERROR) {
+      otaStatus += "Receive Failed";
+      Serial.println("Receive Failed");
+    } else if (error == OTA_END_ERROR) {
+      otaStatus += "End Failed";
+      Serial.println("End Failed");
+    }
+    
+    digitalWrite(BUILTIN_LED_PIN, LOW); });
+
+  ArduinoOTA.begin();
+  Serial.println("OTA update service started");
+  Serial.println("Device hostname: " + String(DEVICE_NAME));
 }
 
 // Function to handle root page
@@ -112,6 +201,14 @@ void handleRoot()
   html += "<div class='status " + String(ledState ? "on" : "off") + "'>";
   html += "Built-in LED: <strong>" + String(ledState ? "ON 💡" : "OFF 🌚") + "</strong></div>";
 
+  // Add device info and OTA status
+  html += "<div style='background:#e9ecef;padding:10px;border-radius:8px;margin:15px 0;font-size:14px;'>";
+  html += "<strong>Device Info:</strong><br>";
+  html += "Name: " + DEVICE_NAME + "<br>";
+  html += "Version: " + FIRMWARE_VERSION + "<br>";
+  html += "OTA Status: <span style='color:" + String(otaInProgress ? "#dc3545" : "#28a745") + ";'>" + otaStatus + "</span>";
+  html += "</div>";
+
   html += "<h3>LED Strip Control</h3>";
   html += "<button class='off' onclick=\"setMode('off')\">Strip OFF</button>";
   html += "<button class='on' onclick=\"setMode('solid')\">Solid Color</button>";
@@ -130,6 +227,11 @@ void handleRoot()
   html += "<br><button class='toggle' onclick=\"controlLED('toggle')\">Toggle LED</button>";
   html += "<div class='ip'>Device IP: " + WiFi.localIP().toString() + "</div>";
   html += "<div style='margin-top:10px;font-size:12px;color:#888;'>Ready for Android app connection!</div>";
+  html += "<div style='margin-top:15px;padding:10px;background:#fff3cd;border-radius:5px;font-size:12px;'>";
+  html += "<strong>📡 OTA Updates:</strong><br>";
+  html += "Use Arduino IDE or PlatformIO to upload wirelessly<br>";
+  html += "Network Port: " + DEVICE_NAME + ".local";
+  html += "</div>";
   html += "</div>";
   html += "<script>";
   html += "function controlLED(action){";
@@ -400,7 +502,11 @@ void processSerialCommand(String command)
   else if (command == "status")
   {
     String wifiStatus = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "disconnected";
-    Serial.println("RESPONSE:Mode=" + String(currentMode) + ",LED=" + String(ledState) + ",WiFi=" + wifiStatus + ",USB=connected");
+    Serial.println("RESPONSE:Mode=" + String(currentMode) + ",LED=" + String(ledState) + ",WiFi=" + wifiStatus + ",USB=connected,Version=" + FIRMWARE_VERSION + ",OTA=" + otaStatus);
+  }
+  else if (command == "info")
+  {
+    Serial.println("RESPONSE:Device=" + DEVICE_NAME + ",Version=" + FIRMWARE_VERSION + ",IP=" + WiFi.localIP().toString());
   }
   else if (command.startsWith("brightness:"))
   {
@@ -426,7 +532,7 @@ void processSerialCommand(String command)
   else
   {
     Serial.println("RESPONSE:ERROR Unknown command: " + command);
-    Serial.println("Available commands: ping, off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, brightness:0-255, music:data");
+    Serial.println("Available commands: ping, off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, info, brightness:0-255, music:data");
   }
 }
 
@@ -539,6 +645,16 @@ void setup()
     Serial.print("Signal strength (RSSI): ");
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
+
+    // Initialize mDNS for easier network discovery
+    if (MDNS.begin(DEVICE_NAME.c_str()))
+    {
+      Serial.println("mDNS responder started: " + DEVICE_NAME + ".local");
+      MDNS.addService("http", "tcp", 80);
+    }
+
+    // Setup OTA updates
+    setupOTA();
   }
   else
   {
@@ -583,7 +699,7 @@ void setup()
   Serial.println("- ping (test connection)");
   Serial.println("- off, solid, rainbow, music");
   Serial.println("- red, green, blue, yellow, white");
-  Serial.println("- ledon, ledoff, toggle, status");
+  Serial.println("- ledon, ledoff, toggle, status, info");
   Serial.println("- brightness:0-255");
   Serial.println("- music:data (for real-time music sync)");
   Serial.println("=================================");
@@ -595,14 +711,23 @@ void setup()
 
 void loop()
 {
-  // Check for USB serial commands (highest priority for low latency)
+  // Handle OTA updates (highest priority)
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    ArduinoOTA.handle();
+  }
+
+  // Check for USB serial commands (high priority for low latency)
   checkSerialInput();
 
   // Handle web server requests
   server.handleClient();
 
-  // Update LED strip based on current mode
-  handleLedStrip();
+  // Update LED strip based on current mode (skip during OTA)
+  if (!otaInProgress)
+  {
+    handleLedStrip();
+  }
 
   // Send periodic heartbeat if connected
   static unsigned long lastHeartbeat = 0;
