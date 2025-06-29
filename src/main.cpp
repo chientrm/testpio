@@ -4,6 +4,9 @@
 #include <FastLED.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <ArduinoJson.h>
 #include "wifi_credentials.h"
 
 // LED Strip Configuration
@@ -45,9 +48,24 @@ bool serialConnected = false;
 bool otaInProgress = false;
 String otaStatus = "Ready";
 
+// Auto-Update Configuration
+const String FIRMWARE_UPDATE_URL = "https://api.github.com/repos/yourusername/yourrepo/releases/latest";
+const String FIRMWARE_BINARY_URL_BASE = "https://github.com/yourusername/yourrepo/releases/download/";
+unsigned long lastUpdateCheck = 0;
+const unsigned long UPDATE_CHECK_INTERVAL = 3600000; // Check every hour (3600000ms)
+bool autoUpdateEnabled = true;
+bool updateInProgress = false;
+String latestVersion = "";
+String updateStatus = "Ready";
+
 // Device Info
 const String DEVICE_NAME = "ESP32-MusicViz";
-const String FIRMWARE_VERSION = "1.2.1";
+const String FIRMWARE_VERSION = "1.3.0";
+
+// Function declarations
+void checkForFirmwareUpdate();
+void performAutoUpdate(String firmwareUrl);
+void handleAutoUpdate();
 
 // LED Strip Control Functions
 void setStripColor(CRGB color)
@@ -101,7 +119,148 @@ void handleLedStrip()
   }
 }
 
-// OTA Setup and Event Handlers
+// Auto-Update Functions
+void checkForFirmwareUpdate() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Not connected to WiFi, skipping update check");
+    return;
+  }
+  
+  HTTPClient http;
+  http.begin(FIRMWARE_UPDATE_URL);
+  http.addHeader("Accept", "application/json");
+  
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    
+    DynamicJsonDocument doc(4096);
+    DeserializationError error = deserializeJson(doc, payload);
+    
+    if (!error) {
+      latestVersion = doc["tag_name"].as<String>();
+      Serial.println("Latest version: " + latestVersion);
+      
+      // Compare with current version (you'll need to define CURRENT_VERSION)
+      const String CURRENT_VERSION = "v1.0.0"; // Update this with your current version
+      
+      if (latestVersion != CURRENT_VERSION) {
+        Serial.println("New version available: " + latestVersion);
+        updateStatus = "Update available: " + latestVersion;
+        
+        if (autoUpdateEnabled) {
+          String downloadUrl = doc["assets"][0]["browser_download_url"];
+          performAutoUpdate(downloadUrl);
+        }
+      } else {
+        Serial.println("Firmware is up to date");
+        updateStatus = "Up to date";
+      }
+    } else {
+      Serial.println("Error parsing update response");
+      updateStatus = "Check failed";
+    }
+  } else {
+    Serial.println("Error checking for updates: " + String(httpCode));
+    updateStatus = "Check failed";
+  }
+  
+  http.end();
+}
+
+void performAutoUpdate(String updateUrl) {
+  if (updateInProgress) {
+    Serial.println("Update already in progress");
+    return;
+  }
+  
+  updateInProgress = true;
+  updateStatus = "Downloading...";
+  Serial.println("Starting firmware update from: " + updateUrl);
+  
+  WiFiClient client;
+  HTTPUpdate httpUpdate;
+  
+  httpUpdate.onStart([]() {
+    Serial.println("Update started");
+    updateStatus = "Installing...";
+  });
+  
+  httpUpdate.onEnd([]() {
+    Serial.println("Update finished");
+    updateStatus = "Complete - Restarting...";
+  });
+  
+  httpUpdate.onProgress([](int cur, int total) {
+    Serial.printf("Update progress: %d%%\n", (cur * 100) / total);
+    updateStatus = "Installing... " + String((cur * 100) / total) + "%";
+  });
+  
+  httpUpdate.onError([](int error) {
+    Serial.printf("Update error: %d\n", error);
+    updateStatus = "Update failed";
+    updateInProgress = false;
+  });
+  
+  t_httpUpdate_return ret = httpUpdate.update(client, updateUrl);
+  
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("Update failed: %s\n", httpUpdate.getLastErrorString().c_str());
+      updateStatus = "Failed: " + httpUpdate.getLastErrorString();
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("No update needed");
+      updateStatus = "No update needed";
+      break;
+    case HTTP_UPDATE_OK:
+      Serial.println("Update successful");
+      updateStatus = "Update successful";
+      ESP.restart();
+      break;
+  }
+  
+  updateInProgress = false;
+}
+
+void handleAutoUpdate() {
+  String action = server.arg("action");
+  
+  if (action == "check") {
+    checkForFirmwareUpdate();
+    server.send(200, "text/plain", "Update check initiated");
+  } else if (action == "enable") {
+    autoUpdateEnabled = true;
+    server.send(200, "text/plain", "Auto-update enabled");
+    Serial.println("Auto-update enabled via web");
+  } else if (action == "disable") {
+    autoUpdateEnabled = false;
+    server.send(200, "text/plain", "Auto-update disabled");
+    Serial.println("Auto-update disabled via web");
+  } else if (action == "now") {
+    if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION)) {
+      // Perform immediate update
+      HTTPClient http;
+      http.begin(FIRMWARE_UPDATE_URL);
+      int httpCode = http.GET();
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        DynamicJsonDocument doc(4096);
+        if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+          String downloadUrl = doc["assets"][0]["browser_download_url"];
+          performAutoUpdate(downloadUrl);
+        }
+      }
+      http.end();
+      server.send(200, "text/plain", "Update started");
+    } else {
+      server.send(200, "text/plain", "No update available");
+    }
+  } else {
+    server.send(400, "text/plain", "Invalid action");
+  }
+}
+
 void setupOTA()
 {
   // Set hostname for easier identification
@@ -206,7 +365,21 @@ void handleRoot()
   html += "<strong>Device Info:</strong><br>";
   html += "Name: " + DEVICE_NAME + "<br>";
   html += "Version: " + FIRMWARE_VERSION + "<br>";
-  html += "OTA Status: <span style='color:" + String(otaInProgress ? "#dc3545" : "#28a745") + ";'>" + otaStatus + "</span>";
+  html += "OTA Status: <span style='color:" + String(otaInProgress ? "#dc3545" : "#28a745") + ";'>" + otaStatus + "</span><br>";
+  html += "Auto-Update: <span style='color:" + String(autoUpdateEnabled ? "#28a745" : "#dc3545") + ";'>" + String(autoUpdateEnabled ? "Enabled" : "Disabled") + "</span>";
+  if (latestVersion != "") {
+    html += "<br>Latest: " + latestVersion;
+  }
+  html += "</div>";
+  
+  // Add auto-update controls
+  html += "<div style='background:#fff3cd;padding:10px;border-radius:8px;margin:15px 0;font-size:14px;'>";
+  html += "<strong>🔄 Auto Updates:</strong><br>";
+  html += "<button style='background:#17a2b8;color:white;margin:5px;padding:8px 16px;border:none;border-radius:5px;' onclick=\"autoUpdate('check')\">Check Updates</button>";
+  html += "<button style='background:" + String(autoUpdateEnabled ? "#dc3545" : "#28a745") + ";color:white;margin:5px;padding:8px 16px;border:none;border-radius:5px;' onclick=\"autoUpdate('" + String(autoUpdateEnabled ? "disable" : "enable") + "')\">" + String(autoUpdateEnabled ? "Disable" : "Enable") + "</button>";
+  if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION)) {
+    html += "<br><button style='background:#ff6b35;color:white;margin:5px;padding:8px 16px;border:none;border-radius:5px;' onclick=\"autoUpdate('now')\">Update Now</button>";
+  }
   html += "</div>";
 
   html += "<h3>LED Strip Control</h3>";
@@ -255,7 +428,14 @@ void handleRoot()
   html += "}";
   html += "function setMode(mode){fetch('/strip/mode/'+mode);}";
   html += "function setColor(color){fetch('/strip/color/'+color);}";
-  html += "setInterval(function(){location.reload();},10000);";
+  html += "function autoUpdate(action){";
+  html += "  fetch('/auto-update/'+action).then(response => response.json()).then(data => {";
+  html += "    console.log('Auto-update response:', data);";
+  html += "    if(action === 'now') alert('Update started! Device will restart when complete.');";
+  html += "    setTimeout(() => location.reload(), 2000);";
+  html += "  }).catch(err => console.error('Auto-update error:', err));";
+  html += "}";
+  html += "setInterval(function(){location.reload();},15000);";
   html += "</script>";
   html += "</body></html>";
 
@@ -506,7 +686,32 @@ void processSerialCommand(String command)
   }
   else if (command == "info")
   {
-    Serial.println("RESPONSE:Device=" + DEVICE_NAME + ",Version=" + FIRMWARE_VERSION + ",IP=" + WiFi.localIP().toString());
+    Serial.println("RESPONSE:Device=" + DEVICE_NAME + ",Version=" + FIRMWARE_VERSION + ",IP=" + WiFi.localIP().toString() + ",AutoUpdate=" + String(autoUpdateEnabled));
+  }
+  else if (command == "update:check")
+  {
+    checkForFirmwareUpdate();
+    Serial.println("RESPONSE:Update check initiated");
+  }
+  else if (command == "update:enable")
+  {
+    autoUpdateEnabled = true;
+    Serial.println("RESPONSE:Auto-update enabled");
+  }
+  else if (command == "update:disable")
+  {
+    autoUpdateEnabled = false;
+    Serial.println("RESPONSE:Auto-update disabled");
+  }
+  else if (command == "update:now")
+  {
+    if (latestVersion != "") {
+      String downloadUrl = FIRMWARE_BINARY_URL_BASE + latestVersion + "/firmware.bin";
+      performAutoUpdate(downloadUrl);
+      Serial.println("RESPONSE:Manual update started");
+    } else {
+      Serial.println("RESPONSE:ERROR No update available");
+    }
   }
   else if (command.startsWith("brightness:"))
   {
@@ -529,10 +734,48 @@ void processSerialCommand(String command)
     handleMusicVisualization(musicData);
     Serial.println("RESPONSE:Music data processed");
   }
+  else if (command.startsWith("update:"))
+  {
+    String updateCmd = command.substring(7);
+    if (updateCmd == "check") {
+      checkForFirmwareUpdate();
+      Serial.println("RESPONSE:Update check initiated");
+    } else if (updateCmd == "enable") {
+      autoUpdateEnabled = true;
+      Serial.println("RESPONSE:Auto-update enabled");
+    } else if (updateCmd == "disable") {
+      autoUpdateEnabled = false;
+      Serial.println("RESPONSE:Auto-update disabled");
+    } else if (updateCmd == "now") {
+      if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION)) {
+        HTTPClient http;
+        http.begin(FIRMWARE_UPDATE_URL);
+        int httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK) {
+          String payload = http.getString();
+          DynamicJsonDocument doc(4096);
+          if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+            String downloadUrl = doc["assets"][0]["browser_download_url"];
+            performAutoUpdate(downloadUrl);
+            Serial.println("RESPONSE:Update started");
+          } else {
+            Serial.println("RESPONSE:ERROR Failed to parse update info");
+          }
+        } else {
+          Serial.println("RESPONSE:ERROR Failed to get update info");
+        }
+        http.end();
+      } else {
+        Serial.println("RESPONSE:No update available");
+      }
+    } else {
+      Serial.println("RESPONSE:ERROR Invalid update command");
+    }
+  }
   else
   {
     Serial.println("RESPONSE:ERROR Unknown command: " + command);
-    Serial.println("Available commands: ping, off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, info, brightness:0-255, music:data");
+    Serial.println("Available commands: ping, off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, info, brightness:0-255, music:data, update:check/enable/disable/now");
   }
 }
 
@@ -674,6 +917,9 @@ void setup()
   server.on("/strip/mode/*", handleStripMode);
   server.on("/strip/color/*", handleStripColor);
 
+  // Auto-update routes
+  server.on("/auto-update/*", handleAutoUpdate);
+
   // Android App API
   server.on("/api/music", HTTP_POST, handleMusicData);
   server.on("/strip/mode/*", handleStripMode);
@@ -702,6 +948,7 @@ void setup()
   Serial.println("- ledon, ledoff, toggle, status, info");
   Serial.println("- brightness:0-255");
   Serial.println("- music:data (for real-time music sync)");
+  Serial.println("- update:check, update:enable, update:disable, update:now");
   Serial.println("=================================");
 
   // Send initial status
@@ -717,14 +964,20 @@ void loop()
     ArduinoOTA.handle();
   }
 
+  // Handle auto-updates (check periodically)
+  if (WiFi.status() == WL_CONNECTED && !updateInProgress && !otaInProgress)
+  {
+    handleAutoUpdate();
+  }
+
   // Check for USB serial commands (high priority for low latency)
   checkSerialInput();
 
   // Handle web server requests
   server.handleClient();
 
-  // Update LED strip based on current mode (skip during OTA)
-  if (!otaInProgress)
+  // Update LED strip based on current mode (skip during OTA/updates)
+  if (!otaInProgress && !updateInProgress)
   {
     handleLedStrip();
   }
@@ -735,6 +988,12 @@ void loop()
   { // Every 10 seconds
     Serial.println("RESPONSE:HEARTBEAT");
     lastHeartbeat = millis();
+  }
+
+  // Periodic update check (every 24 hours)
+  if (WiFi.isConnected() && !otaInProgress && 
+      autoUpdateEnabled && (millis() - lastUpdateCheck) > UPDATE_CHECK_INTERVAL) {
+    checkForFirmwareUpdate();
   }
 
   // Add a small delay to prevent watchdog timer issues
