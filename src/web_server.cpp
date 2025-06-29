@@ -94,7 +94,7 @@ void handleRoot()
 
     html += "<div style='margin-top:20px;font-size:14px;color:#666;'>Device IP: " + WiFi.localIP().toString() + "</div>";
     html += "<div style='margin-top:10px;font-size:12px;color:#888;'>Ready for Android app connection!</div>";
-    
+
     // GitHub repository link
     html += "<div style='margin-top:15px;padding:10px;background:#f8f9fa;border-radius:8px;text-align:center;'>";
     html += "<a href='" + REPOSITORY_URL + "' target='_blank' style='color:#0366d6;text-decoration:none;font-size:14px;'>";
