@@ -33,9 +33,9 @@ void rainbowEffect()
     hue += 3;
 }
 
-void musicVisualizerDemo()
+void musicVisualizerEffect()
 {
-    // Demo effect until Android app connects
+    // Beautiful animated music visualizer effect
     static uint8_t beat = 0;
     for (int i = 0; i < NUM_LEDS; i++)
     {
@@ -64,8 +64,8 @@ void handleLedStrip()
     case MODE_RAINBOW:
         rainbowEffect();
         break;
-    case MODE_MUSIC_READY:
-        musicVisualizerDemo();
+    case MODE_VISUALIZER:
+        musicVisualizerEffect();
         break;
     }
 }
@@ -76,7 +76,7 @@ void handleMusicVisualization(String musicData)
     // Format: "freq1,freq2,freq3,beat" or JSON-like data
     // For now, create a simple beat-responsive effect
 
-    if (currentMode == MODE_MUSIC_READY)
+    if (currentMode == MODE_VISUALIZER)
     {
         // Simple example: flash intensity based on beat
         int beatValue = musicData.toInt(); // Simple parsing for demo

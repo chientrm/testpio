@@ -56,10 +56,10 @@ void processSerialCommand(String command)
         currentMode = MODE_RAINBOW;
         Serial.println("RESPONSE:Strip Rainbow");
     }
-    else if (command == "music")
+    else if (command == "visualizer")
     {
-        currentMode = MODE_MUSIC_READY;
-        Serial.println("RESPONSE:Strip Music Mode");
+        currentMode = MODE_VISUALIZER;
+        Serial.println("RESPONSE:Strip Visualizer Mode");
     }
     else if (command == "red")
     {
@@ -182,7 +182,7 @@ void processSerialCommand(String command)
     else
     {
         Serial.println("RESPONSE:ERROR Unknown command: " + command);
-        Serial.println("Available commands: ping, off, solid, rainbow, music, red, green, blue, yellow, white, ledon, ledoff, toggle, status, info, brightness:0-255, music:data, update:check/enable/disable/now");
+        Serial.println("Available commands: ping, off, solid, rainbow, visualizer, red, green, blue, yellow, white, ledon, ledoff, toggle, status, info, brightness:0-255, music:data, update:check/enable/disable/now");
     }
 }
 

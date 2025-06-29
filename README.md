@@ -51,7 +51,7 @@ After connecting to WiFi, open your browser and navigate to the ESP32's IP addre
 Connect via USB serial (115200 baud) and use these commands:
 
 - `ping` - Test connection
-- `off/solid/rainbow/music` - LED modes
+- `off/solid/rainbow/visualizer` - LED modes
 - `red/green/blue/yellow/white` - Colors
 - `ledon/ledoff/toggle` - Built-in LED
 - `brightness:0-255` - Set brightness
@@ -90,7 +90,7 @@ The device automatically checks for firmware updates from GitHub releases:
 1. **Off** - All LEDs turned off
 2. **Solid Color** - Single color across all LEDs
 3. **Rainbow** - Animated rainbow effect
-4. **Music Mode** - Demo visualization (ready for Android app integration)
+4. **Visualizer** - Beautiful animated light show effect
 
 ## 🔧 Configuration
 

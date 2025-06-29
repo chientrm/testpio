@@ -79,7 +79,7 @@ void handleRoot()
     html += "<button class='off' onclick=\"setMode('off')\">Strip OFF</button>";
     html += "<button class='on' onclick=\"setMode('solid')\">Solid Color</button>";
     html += "<button class='toggle' onclick=\"setMode('rainbow')\">Rainbow</button>";
-    html += "<button style='background:#ff6b35;color:white;' onclick=\"setMode('music')\">Music Mode</button>";
+    html += "<button style='background:#ff6b35;color:white;' onclick=\"setMode('visualizer')\">Visualizer</button>";
 
     html += "<h3>Colors</h3>";
     html += "<button style='background:#ff0000;color:white;' onclick=\"setColor('red')\">Red</button>";
@@ -93,7 +93,7 @@ void handleRoot()
     html += "<br><button class='toggle' onclick=\"controlLED('toggle')\">Toggle LED</button>";
 
     html += "<div style='margin-top:20px;font-size:14px;color:#666;'>Device IP: " + WiFi.localIP().toString() + "</div>";
-    html += "<div style='margin-top:10px;font-size:12px;color:#888;'>Ready for Android app connection!</div>";
+    html += "<div style='margin-top:10px;font-size:12px;color:#888;'>Standalone LED visualizer ready!</div>";
 
     // GitHub repository link
     html += "<div style='margin-top:15px;padding:10px;background:#f8f9fa;border-radius:8px;text-align:center;'>";
@@ -160,11 +160,11 @@ void handleStripMode()
         server.send(200, "text/plain", "Strip Rainbow");
         Serial.println("LED Strip: Rainbow Mode");
     }
-    else if (mode == "music")
+    else if (mode == "visualizer")
     {
-        currentMode = MODE_MUSIC_READY;
-        server.send(200, "text/plain", "Strip Music Mode");
-        Serial.println("LED Strip: Music Visualizer Ready");
+        currentMode = MODE_VISUALIZER;
+        server.send(200, "text/plain", "Strip Visualizer Mode");
+        Serial.println("LED Strip: Visualizer Mode");
     }
     else
     {

@@ -85,7 +85,7 @@ void setup()
   Serial.println("\n=== USB Serial Control Ready ===");
   Serial.println("Available commands:");
   Serial.println("- ping (test connection)");
-  Serial.println("- off, solid, rainbow, music");
+  Serial.println("- off, solid, rainbow, visualizer");
   Serial.println("- red, green, blue, yellow, white");
   Serial.println("- ledon, ledoff, toggle, status, info");
   Serial.println("- brightness:0-255");

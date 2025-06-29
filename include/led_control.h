@@ -7,14 +7,14 @@ enum LedMode
     MODE_OFF,
     MODE_SOLID,
     MODE_RAINBOW,
-    MODE_MUSIC_READY
+    MODE_VISUALIZER
 };
 
 // LED Control Functions
 void initializeLEDs();
 void setStripColor(CRGB color);
 void rainbowEffect();
-void musicVisualizerDemo();
+void musicVisualizerEffect();
 void handleLedStrip();
 void handleMusicVisualization(String musicData);
 
