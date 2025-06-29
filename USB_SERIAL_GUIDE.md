@@ -5,10 +5,12 @@ Control your ESP32 Music Visualizer via USB serial connection for direct, low-la
 ## 🔌 Connection Setup
 
 ### Hardware
+
 - USB cable (USB-A to USB-C or USB-C to USB-C)
 - Connect ESP32 to computer or any device with USB serial capability
 
 ### Serial Settings
+
 - **Baud Rate**: 115200
 - **Data Bits**: 8
 - **Stop Bits**: 1
@@ -17,6 +19,7 @@ Control your ESP32 Music Visualizer via USB serial connection for direct, low-la
 ## 📟 Available Commands
 
 ### LED Strip Control
+
 ```
 off          - Turn off LED strip
 solid        - Set to solid color mode
@@ -25,6 +28,7 @@ visualizer   - Animated visualizer mode
 ```
 
 ### Colors (for solid mode)
+
 ```
 red          - Set color to red
 green        - Set color to green
@@ -34,6 +38,7 @@ white        - Set color to white
 ```
 
 ### Built-in LED Control
+
 ```
 ledon        - Turn on built-in LED
 ledoff       - Turn off built-in LED
@@ -41,6 +46,7 @@ toggle       - Toggle built-in LED
 ```
 
 ### System Commands
+
 ```
 ping         - Test connection (returns PONG)
 status       - Get current status
@@ -49,6 +55,7 @@ brightness:N - Set brightness (0-255)
 ```
 
 ### Auto-Update Commands
+
 ```
 update:check    - Check for firmware updates
 update:enable   - Enable automatic updates
@@ -77,18 +84,21 @@ RESPONSE:Mode=1,LED=false,WiFi=192.168.1.100,USB=connected,Version=1.0.0
 ## 🖥️ Platform-Specific Tools
 
 ### Windows
+
 - **PuTTY** - Popular terminal emulator
 - **Arduino IDE Serial Monitor**
 - **Windows Terminal** with PowerShell
 - **Tera Term**
 
 ### macOS/Linux
+
 - **Screen**: `screen /dev/ttyUSB0 115200`
 - **Minicom**: `minicom -D /dev/ttyUSB0 -b 115200`
 - **Arduino IDE Serial Monitor**
 - **PlatformIO Serial Monitor**: `pio device monitor`
 
 ### Programming Languages
+
 - **Python**: `pyserial` library
 - **Node.js**: `serialport` package
 - **C++**: Platform-specific serial libraries
@@ -119,11 +129,13 @@ ser.close()
 ## 🔧 Testing Commands
 
 1. **Connect via Serial Monitor**
+
    ```bash
    pio device monitor
    ```
 
 2. **Test Basic Commands**
+
    ```
    ping
    status
