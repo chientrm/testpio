@@ -104,6 +104,7 @@ Edit `src/config.cpp` to modify:
 
 - [AUTO_UPDATE_GUIDE.md](AUTO_UPDATE_GUIDE.md) - Complete auto-update setup and usage
 - [OTA_UPDATE_GUIDE.md](OTA_UPDATE_GUIDE.md) - Over-the-air update instructions
+- [USB_SERIAL_GUIDE.md](USB_SERIAL_GUIDE.md) - USB serial control documentation
 
 ## 🤝 Contributing
 
