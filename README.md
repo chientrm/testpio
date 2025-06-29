@@ -16,18 +16,21 @@ A feature-rich ESP32-based LED strip music visualizer with automatic firmware up
 ## 🚀 Quick Start
 
 ### Hardware Requirements
+
 - ESP32 development board (ESP32 Pico Kit or similar)
 - WS2812B LED strip (60 LEDs)
 - 5V power supply for LED strip
 - Jumper wires
 
 ### Wiring
+
 - LED Strip Data Pin → GPIO 23
 - LED Strip GND → ESP32 GND
 - LED Strip VCC → 5V power supply
 - ESP32 GND → Power supply GND
 
 ### Software Setup
+
 1. Clone this repository
 2. Install [PlatformIO](https://platformio.org/)
 3. Copy `include/wifi_credentials.h.example` to `include/wifi_credentials.h`
@@ -37,6 +40,7 @@ A feature-rich ESP32-based LED strip music visualizer with automatic firmware up
 ## 🌐 Web Interface
 
 After connecting to WiFi, open your browser and navigate to the ESP32's IP address. The web interface provides:
+
 - LED strip control (modes and colors)
 - Auto-update management
 - Device status and information
@@ -45,6 +49,7 @@ After connecting to WiFi, open your browser and navigate to the ESP32's IP addre
 ## 📱 Serial Commands
 
 Connect via USB serial (115200 baud) and use these commands:
+
 - `ping` - Test connection
 - `off/solid/rainbow/music` - LED modes
 - `red/green/blue/yellow/white` - Colors
@@ -56,6 +61,7 @@ Connect via USB serial (115200 baud) and use these commands:
 ## 🔄 Auto-Update System
 
 The device automatically checks for firmware updates from GitHub releases:
+
 - Checks every hour when connected to WiFi
 - Downloads and installs updates automatically (if enabled)
 - Web and serial interfaces for manual control
@@ -89,6 +95,7 @@ The device automatically checks for firmware updates from GitHub releases:
 ## 🔧 Configuration
 
 Edit `src/config.cpp` to modify:
+
 - Device name and version
 - Auto-update URLs and intervals
 - LED strip settings
