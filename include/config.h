@@ -18,6 +18,7 @@
 // Device Info
 extern const String DEVICE_NAME;
 extern const String FIRMWARE_VERSION;
+extern const String REPOSITORY_URL;
 
 // Auto-Update URLs
 extern const String FIRMWARE_UPDATE_URL;
