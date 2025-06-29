@@ -120,143 +120,173 @@ void handleLedStrip()
 }
 
 // Auto-Update Functions
-void checkForFirmwareUpdate() {
-  if (WiFi.status() != WL_CONNECTED) {
+void checkForFirmwareUpdate()
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
     Serial.println("Not connected to WiFi, skipping update check");
     return;
   }
-  
+
   HTTPClient http;
   http.begin(FIRMWARE_UPDATE_URL);
   http.addHeader("Accept", "application/json");
-  
+
   int httpCode = http.GET();
-  if (httpCode == HTTP_CODE_OK) {
+  if (httpCode == HTTP_CODE_OK)
+  {
     String payload = http.getString();
-    
+
     DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, payload);
-    
-    if (!error) {
+
+    if (!error)
+    {
       latestVersion = doc["tag_name"].as<String>();
       Serial.println("Latest version: " + latestVersion);
-      
+
       // Compare with current version (you'll need to define CURRENT_VERSION)
       const String CURRENT_VERSION = "v1.0.0"; // Update this with your current version
-      
-      if (latestVersion != CURRENT_VERSION) {
+
+      if (latestVersion != CURRENT_VERSION)
+      {
         Serial.println("New version available: " + latestVersion);
         updateStatus = "Update available: " + latestVersion;
-        
-        if (autoUpdateEnabled) {
+
+        if (autoUpdateEnabled)
+        {
           String downloadUrl = doc["assets"][0]["browser_download_url"];
           performAutoUpdate(downloadUrl);
         }
-      } else {
+      }
+      else
+      {
         Serial.println("Firmware is up to date");
         updateStatus = "Up to date";
       }
-    } else {
+    }
+    else
+    {
       Serial.println("Error parsing update response");
       updateStatus = "Check failed";
     }
-  } else {
+  }
+  else
+  {
     Serial.println("Error checking for updates: " + String(httpCode));
     updateStatus = "Check failed";
   }
-  
+
   http.end();
 }
 
-void performAutoUpdate(String updateUrl) {
-  if (updateInProgress) {
+void performAutoUpdate(String updateUrl)
+{
+  if (updateInProgress)
+  {
     Serial.println("Update already in progress");
     return;
   }
-  
+
   updateInProgress = true;
   updateStatus = "Downloading...";
   Serial.println("Starting firmware update from: " + updateUrl);
-  
+
   WiFiClient client;
   HTTPUpdate httpUpdate;
-  
-  httpUpdate.onStart([]() {
+
+  httpUpdate.onStart([]()
+                     {
     Serial.println("Update started");
-    updateStatus = "Installing...";
-  });
-  
-  httpUpdate.onEnd([]() {
+    updateStatus = "Installing..."; });
+
+  httpUpdate.onEnd([]()
+                   {
     Serial.println("Update finished");
-    updateStatus = "Complete - Restarting...";
-  });
-  
-  httpUpdate.onProgress([](int cur, int total) {
+    updateStatus = "Complete - Restarting..."; });
+
+  httpUpdate.onProgress([](int cur, int total)
+                        {
     Serial.printf("Update progress: %d%%\n", (cur * 100) / total);
-    updateStatus = "Installing... " + String((cur * 100) / total) + "%";
-  });
-  
-  httpUpdate.onError([](int error) {
+    updateStatus = "Installing... " + String((cur * 100) / total) + "%"; });
+
+  httpUpdate.onError([](int error)
+                     {
     Serial.printf("Update error: %d\n", error);
     updateStatus = "Update failed";
-    updateInProgress = false;
-  });
-  
+    updateInProgress = false; });
+
   t_httpUpdate_return ret = httpUpdate.update(client, updateUrl);
-  
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("Update failed: %s\n", httpUpdate.getLastErrorString().c_str());
-      updateStatus = "Failed: " + httpUpdate.getLastErrorString();
-      break;
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("No update needed");
-      updateStatus = "No update needed";
-      break;
-    case HTTP_UPDATE_OK:
-      Serial.println("Update successful");
-      updateStatus = "Update successful";
-      ESP.restart();
-      break;
+
+  switch (ret)
+  {
+  case HTTP_UPDATE_FAILED:
+    Serial.printf("Update failed: %s\n", httpUpdate.getLastErrorString().c_str());
+    updateStatus = "Failed: " + httpUpdate.getLastErrorString();
+    break;
+  case HTTP_UPDATE_NO_UPDATES:
+    Serial.println("No update needed");
+    updateStatus = "No update needed";
+    break;
+  case HTTP_UPDATE_OK:
+    Serial.println("Update successful");
+    updateStatus = "Update successful";
+    ESP.restart();
+    break;
   }
-  
+
   updateInProgress = false;
 }
 
-void handleAutoUpdate() {
+void handleAutoUpdate()
+{
   String action = server.arg("action");
-  
-  if (action == "check") {
+
+  if (action == "check")
+  {
     checkForFirmwareUpdate();
     server.send(200, "text/plain", "Update check initiated");
-  } else if (action == "enable") {
+  }
+  else if (action == "enable")
+  {
     autoUpdateEnabled = true;
     server.send(200, "text/plain", "Auto-update enabled");
     Serial.println("Auto-update enabled via web");
-  } else if (action == "disable") {
+  }
+  else if (action == "disable")
+  {
     autoUpdateEnabled = false;
     server.send(200, "text/plain", "Auto-update disabled");
     Serial.println("Auto-update disabled via web");
-  } else if (action == "now") {
-    if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION)) {
+  }
+  else if (action == "now")
+  {
+    if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION))
+    {
       // Perform immediate update
       HTTPClient http;
       http.begin(FIRMWARE_UPDATE_URL);
       int httpCode = http.GET();
-      if (httpCode == HTTP_CODE_OK) {
+      if (httpCode == HTTP_CODE_OK)
+      {
         String payload = http.getString();
         DynamicJsonDocument doc(4096);
-        if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+        if (deserializeJson(doc, payload) == DeserializationError::Ok)
+        {
           String downloadUrl = doc["assets"][0]["browser_download_url"];
           performAutoUpdate(downloadUrl);
         }
       }
       http.end();
       server.send(200, "text/plain", "Update started");
-    } else {
+    }
+    else
+    {
       server.send(200, "text/plain", "No update available");
     }
-  } else {
+  }
+  else
+  {
     server.send(400, "text/plain", "Invalid action");
   }
 }
@@ -367,17 +397,19 @@ void handleRoot()
   html += "Version: " + FIRMWARE_VERSION + "<br>";
   html += "OTA Status: <span style='color:" + String(otaInProgress ? "#dc3545" : "#28a745") + ";'>" + otaStatus + "</span><br>";
   html += "Auto-Update: <span style='color:" + String(autoUpdateEnabled ? "#28a745" : "#dc3545") + ";'>" + String(autoUpdateEnabled ? "Enabled" : "Disabled") + "</span>";
-  if (latestVersion != "") {
+  if (latestVersion != "")
+  {
     html += "<br>Latest: " + latestVersion;
   }
   html += "</div>";
-  
+
   // Add auto-update controls
   html += "<div style='background:#fff3cd;padding:10px;border-radius:8px;margin:15px 0;font-size:14px;'>";
   html += "<strong>🔄 Auto Updates:</strong><br>";
   html += "<button style='background:#17a2b8;color:white;margin:5px;padding:8px 16px;border:none;border-radius:5px;' onclick=\"autoUpdate('check')\">Check Updates</button>";
   html += "<button style='background:" + String(autoUpdateEnabled ? "#dc3545" : "#28a745") + ";color:white;margin:5px;padding:8px 16px;border:none;border-radius:5px;' onclick=\"autoUpdate('" + String(autoUpdateEnabled ? "disable" : "enable") + "')\">" + String(autoUpdateEnabled ? "Disable" : "Enable") + "</button>";
-  if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION)) {
+  if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION))
+  {
     html += "<br><button style='background:#ff6b35;color:white;margin:5px;padding:8px 16px;border:none;border-radius:5px;' onclick=\"autoUpdate('now')\">Update Now</button>";
   }
   html += "</div>";
@@ -705,11 +737,14 @@ void processSerialCommand(String command)
   }
   else if (command == "update:now")
   {
-    if (latestVersion != "") {
+    if (latestVersion != "")
+    {
       String downloadUrl = FIRMWARE_BINARY_URL_BASE + latestVersion + "/firmware.bin";
       performAutoUpdate(downloadUrl);
       Serial.println("RESPONSE:Manual update started");
-    } else {
+    }
+    else
+    {
       Serial.println("RESPONSE:ERROR No update available");
     }
   }
@@ -737,38 +772,56 @@ void processSerialCommand(String command)
   else if (command.startsWith("update:"))
   {
     String updateCmd = command.substring(7);
-    if (updateCmd == "check") {
+    if (updateCmd == "check")
+    {
       checkForFirmwareUpdate();
       Serial.println("RESPONSE:Update check initiated");
-    } else if (updateCmd == "enable") {
+    }
+    else if (updateCmd == "enable")
+    {
       autoUpdateEnabled = true;
       Serial.println("RESPONSE:Auto-update enabled");
-    } else if (updateCmd == "disable") {
+    }
+    else if (updateCmd == "disable")
+    {
       autoUpdateEnabled = false;
       Serial.println("RESPONSE:Auto-update disabled");
-    } else if (updateCmd == "now") {
-      if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION)) {
+    }
+    else if (updateCmd == "now")
+    {
+      if (latestVersion != "" && latestVersion != ("v" + FIRMWARE_VERSION))
+      {
         HTTPClient http;
         http.begin(FIRMWARE_UPDATE_URL);
         int httpCode = http.GET();
-        if (httpCode == HTTP_CODE_OK) {
+        if (httpCode == HTTP_CODE_OK)
+        {
           String payload = http.getString();
           DynamicJsonDocument doc(4096);
-          if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+          if (deserializeJson(doc, payload) == DeserializationError::Ok)
+          {
             String downloadUrl = doc["assets"][0]["browser_download_url"];
             performAutoUpdate(downloadUrl);
             Serial.println("RESPONSE:Update started");
-          } else {
+          }
+          else
+          {
             Serial.println("RESPONSE:ERROR Failed to parse update info");
           }
-        } else {
+        }
+        else
+        {
           Serial.println("RESPONSE:ERROR Failed to get update info");
         }
         http.end();
-      } else {
+      }
+      else
+      {
         Serial.println("RESPONSE:No update available");
       }
-    } else {
+    }
+    else
+    {
       Serial.println("RESPONSE:ERROR Invalid update command");
     }
   }
@@ -991,8 +1044,9 @@ void loop()
   }
 
   // Periodic update check (every 24 hours)
-  if (WiFi.isConnected() && !otaInProgress && 
-      autoUpdateEnabled && (millis() - lastUpdateCheck) > UPDATE_CHECK_INTERVAL) {
+  if (WiFi.isConnected() && !otaInProgress &&
+      autoUpdateEnabled && (millis() - lastUpdateCheck) > UPDATE_CHECK_INTERVAL)
+  {
     checkForFirmwareUpdate();
   }
 
