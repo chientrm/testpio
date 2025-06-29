@@ -47,7 +47,7 @@ String otaStatus = "Ready";
 
 // Device Info
 const String DEVICE_NAME = "ESP32-MusicViz";
-const String FIRMWARE_VERSION = "1.2.0";
+const String FIRMWARE_VERSION = "1.2.1";
 
 // LED Strip Control Functions
 void setStripColor(CRGB color)
